@@ -82,3 +82,38 @@ describe('EmptyState', () => {
     expect(onClick).toHaveBeenCalled();
   });
 });
+
+describe('sign-up password rule', () => {
+  it('accepts any letter + digit mix of 8+ characters (regression: digit check was /d/)', async () => {
+    const { passwordProblem } = await import('../utils/validate.js');
+    expect(passwordProblem('Secret123')).toBe('');
+    expect(passwordProblem('abcdefg1')).toBe('');
+    expect(passwordProblem('short1')).not.toBe('');
+    expect(passwordProblem('lettersonly')).not.toBe('');
+    expect(passwordProblem('12345678')).not.toBe('');
+  });
+});
+
+describe('MediaPanel', () => {
+  it('signed out: says what is hidden and links to sign-in back to this page', async () => {
+    const { default: MediaPanel } = await import('../components/MediaPanel.jsx');
+    render(
+      <MemoryRouter initialEntries={['/property/flat-1']}>
+        <MediaPanel item={{ images: ['a', 'b'], media: { locked: true, images: 6, videos: 1, brochures: 2 } }} />
+      </MemoryRouter>
+    );
+    expect(screen.getByText(/4 more photos · 1 video · 2 brochures/)).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Sign in' }).getAttribute('href')).toBe('/login?redirect=%2Fproperty%2Fflat-1');
+  });
+  it('signed in: plays videos and links brochures through their signed links', async () => {
+    const { default: MediaPanel } = await import('../components/MediaPanel.jsx');
+    const { container } = render(
+      <MemoryRouter>
+        <MediaPanel item={{ media: { locked: false }, videos: [{ url: '/api/media/v.mp4', src: '/api/media/v.mp4?s=1', name: 'Tour' }], brochures: [{ url: '/api/media/b.pdf', src: '/api/media/b.pdf?s=2', name: 'Brochure', size: 389000 }] }} />
+      </MemoryRouter>
+    );
+    expect(container.querySelector('video').getAttribute('src')).toBe('/api/media/v.mp4?s=1');
+    expect(screen.getByRole('link', { name: /Brochure/ }).getAttribute('href')).toBe('/api/media/b.pdf?s=2');
+    expect(screen.getByText(/380 KB/)).toBeTruthy();
+  });
+});

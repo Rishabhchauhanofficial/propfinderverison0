@@ -147,7 +147,7 @@ export function preferencesFrom(events) {
     .map((m) => m.price)
     .sort((a, b) => a - b);
   return {
-    lookingTo: mainType === 'rent' ? 'rent' : mainType === 'sale' ? 'buy' : null,
+    lookingTo: intent.length === 2 && intent[0].count === intent[1].count ? 'buy or rent' : mainType === 'rent' ? 'rent' : mainType === 'sale' ? 'buy' : null,
     cities: top(all.map((m) => m.city || m.location)),
     localities: top(all.map((m) => m.locality)),
     propertyTypes: top(all.map((m) => m.propertyType)),

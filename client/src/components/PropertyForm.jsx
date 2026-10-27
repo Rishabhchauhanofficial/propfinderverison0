@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AMENITIES, FURNISHING_OPTIONS, PROPERTY_TYPES, RERA_STATE_OPTIONS } from '../utils/constants.js';
 import { draftDescription, errorMessage, geocode, myProjects, openPrivateFile, uploadBrochures, uploadDocuments, uploadImages, uploadVideos } from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import { formatINR } from '../utils/format.js';
+import { formatFileSize, formatINR } from '../utils/format.js';
 import MapView from './MapView.jsx';
 import Loader from './Loader.jsx';
 
@@ -569,7 +569,7 @@ export default function PropertyForm({ initialValues, submitLabel = 'Publish lis
               <ul className="doc-list">
                 {[...values.videos.map((f) => ['videos', '🎬', f]), ...values.brochures.map((f) => ['brochures', '📄', f])].map(([field, icon, f]) => (
                   <li key={f.url}>
-                    <span>{icon} {f.name}{f.size ? ` · ${(f.size / 1048576).toFixed(1)} MB` : ''}</span>
+                    <span>{icon} {f.name}{f.size ? ` · ${formatFileSize(f.size)}` : ''}</span>
                     <button type="button" className="link-btn small" onClick={() => set(field, values[field].filter((x) => x.url !== f.url))}>Remove</button>
                   </li>
                 ))}

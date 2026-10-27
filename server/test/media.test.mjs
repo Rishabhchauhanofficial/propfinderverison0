@@ -3,7 +3,8 @@ import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startServer, sampleListing } from './helpers.mjs';
 
-const { findPhoneNumbers } = await import('../src/services/phoneScan.js');
+const { findPhoneNumbers, setTextExtractor, stopOcr } = await import('../src/services/phoneScan.js');
+const { fixtureImage, imagePdf, textPdf, videoFrom } = await import('./mediaFixtures.mjs');
 
 let t;
 let owner;
@@ -13,13 +14,16 @@ before(async () => {
   t = await startServer();
   [owner, agent, buyer] = await Promise.all([t.login('priya@example.com'), t.login('agent@propfinder.in'), t.login('demo@propfinder.in')]);
 });
-after(async () => t.stop());
+after(async () => {
+  await stopOcr();
+  await t.stop();
+});
 
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC', 'base64');
 // A real PNG whose "OCR text" (test stand-in) is the given string.
 const photo = (text = '') => Buffer.concat([PNG, Buffer.from(text ? `OCRTEXT:${text}` : '')]);
-const MP4 = Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from('ftypisom'), Buffer.alloc(64, 1)]);
-const PDF = Buffer.from('%PDF-1.4\n% test brochure\n%%EOF\n');
+const MP4 = videoFrom(['clean-photo'], 2);
+const PDF = textPdf(['Tower A floor plans', 'Possession December 2027']);
 
 async function upload(path, field, files, token = owner) {
   const fd = new FormData();
@@ -124,4 +128,52 @@ test('compare and projects follow the same rules', async () => {
   assert.equal(anon.media.locked, true);
   assert.ok(anon.images.length <= 2);
   assert.equal((await t.api(`/api/projects/${slug}`, { token: buyer })).data.project.media.locked, false);
+});
+
+test('brochures: a phone number in the text layer is refused, with the page', async () => {
+  const r = await upload('/api/uploads/brochures', 'brochures', [[textPdf(['Sales office', 'Call +91 98765 43210']), 'b.pdf', 'application/pdf']]);
+  assert.equal(r.status, 422);
+  assert.match(r.data.error, /98••••••10\) on page 1/);
+  const broken = await upload('/api/uploads/brochures', 'brochures', [[Buffer.from('%PDF-1.4\nnot really a pdf'), 'x.pdf', 'application/pdf']]);
+  assert.equal(broken.status, 400);
+});
+
+test('if the check cannot run, uploads are refused instead of let through', async () => {
+  setTextExtractor(() => {
+    throw new Error('OCR engine down');
+  });
+  try {
+    const r = await uploadPhotos(['nothing to see']);
+    assert.equal(r.status, 503);
+    assert.match(r.data.error, /try again/);
+  } finally {
+    setTextExtractor(null);
+  }
+});
+
+test('real OCR: numbers in photos, scanned brochure pages and video frames are caught', async () => {
+  const prev = process.env.PHONE_SCAN;
+  process.env.PHONE_SCAN = 'ocr';
+  try {
+    const photoUp = (name) => upload('/api/uploads', 'images', [[fixtureImage(name), `${name}.jpg`, 'image/jpeg']]);
+    for (const name of ['phone-plain', 'phone-small', 'phone-banner', 'phone-rotated', 'phone-script']) {
+      assert.equal((await photoUp(name)).status, 422, name);
+    }
+    for (const name of ['clean-photo', 'clean-numbers']) {
+      assert.equal((await photoUp(name)).status, 201, name);
+    }
+
+    const scanned = await upload('/api/uploads/brochures', 'brochures', [[await imagePdf('phone-banner'), 'scan.pdf', 'application/pdf']]);
+    assert.equal(scanned.status, 422);
+    assert.match(scanned.data.error, /page 1/);
+    assert.equal((await upload('/api/uploads/brochures', 'brochures', [[await imagePdf('clean-photo'), 'ok.pdf', 'application/pdf']])).status, 201);
+
+    // The number only appears in the second half of the video.
+    const v = await upload('/api/uploads/videos', 'videos', [[videoFrom(['clean-photo', 'phone-plain'], 4), 'tour.mp4', 'video/mp4']]);
+    assert.equal(v.status, 422);
+    assert.match(v.data.error, /98••••••10\) around 0:0[4-8]/);
+    assert.equal((await upload('/api/uploads/videos', 'videos', [[videoFrom(['clean-photo', 'clean-numbers'], 3), 'ok.mp4', 'video/mp4']])).status, 201);
+  } finally {
+    process.env.PHONE_SCAN = prev;
+  }
 });

@@ -101,8 +101,15 @@ Listings and projects are attached to a `Location` tree (country → state → d
 
 - **Signed-out visitors** see the first `PUBLIC_IMAGE_COUNT` photos (default 2) and counts of what's hidden. Everything else needs a login: all photos, videos, brochures and the video link. This applies to property pages, search cards, compare and projects.
 - **Videos and brochures** (MP4/WebM/MOV up to 100 MB; PDF up to 25 MB) are stored in `uploads-private/media`. They're served only through signed links that are tied to the user and expire after 2 hours (`GET /api/media/:name`).
-- **Phone-number check:** every uploaded photo is read with OCR (Tesseract, `PHONE_SCAN=ocr`) and refused if it shows an Indian mobile, landline or toll-free number. Titles and descriptions containing phone numbers are refused too.
-- **OCR availability:** if OCR is unavailable, photos are accepted and marked `unscanned` in the `Upload` collection. Videos and brochures are not scanned.
+- **Phone-number check** (`services/phoneScan.js`). Uploads showing an Indian mobile, landline or toll-free number are refused, with the masked number and where it was found:
+  - **Photos:** OCR (Tesseract) runs over up to 9 cleaned-up versions of each image: enlarged for tiny text, contrast-stretched, white text and dark text isolated, and straightened by ±10°. It stops at the first hit, using two OCR engines in parallel.
+  - **Brochures:** the PDF text layer is checked (up to 200 pages), and the first 30 pages are rendered and read with OCR, which covers scanned pages and numbers inside images.
+  - **Videos:** up to 40 frames spread across the video (at least one every 2 s) are extracted with ffmpeg and read with OCR.
+  - **Text:** titles and descriptions containing phone numbers are refused.
+- **Bundled OCR data:** the English language data ships with the app (`@tesseract.js-data/eng`), so no download is needed. The OCR engine starts when the server boots.
+- **If the check can't run**, uploads are refused with "try again" rather than let through. `PHONE_SCAN=off` disables the check; files are then stored as `unscanned`.
+- **Accuracy:** measured on `server/test/fixtures/ocr`, it catches plain, tiny, banner, rotated and cursive-script numbers and ignores prices, areas, PIN codes and RERA IDs.
+- **Not covered:** numbers spoken in a video, numbers shown for less than the gap between sampled frames, pages after 30 in a scanned brochure, and heavily distorted text. No OCR is perfect, so the "Report listing" button remains the backstop.
 - **Linking rules:** a listing can only use files its lister uploaded. Image links can no longer be added, because they can't be scanned; existing ones are kept.
 
 ### Buyer activity for listers (opt-in)

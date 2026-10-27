@@ -6,7 +6,10 @@ import multer from 'multer';
 import Property from '../models/Property.js';
 import User from '../models/User.js';
 import { ReraRecord, Upload } from '../models/index.js';
-import { scanImage } from '../services/phoneScan.js';
+import { scanImage, scanPdf, scanVideo } from '../services/phoneScan.js';
+
+// The phone-number check could not run (OCR engine down): refuse rather than let files through unchecked.
+const SCAN_UNAVAILABLE = 'We could not check this file for phone numbers right now. Please try again in a minute.';
 import { verifyMediaSignature } from '../services/mediaService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -77,6 +80,7 @@ export function handleUpload(req, res, next) {
       for (const f of files) {
         const label = originalName(f, 'photo');
         const scan = await scanImage(f.buffer);
+        if (scan.status === 'error') return res.status(503).json({ error: SCAN_UNAVAILABLE, urls, rejected });
         if (scan.status === 'phone-found') {
           rejected.push({ name: label, reason: `Shows a phone number (${scan.found.join(', ')}). Remove it and upload again.` });
           continue;
@@ -117,13 +121,32 @@ export function handleVideoUpload(req, res, next) {
           return res.status(400).json({ error: 'Only MP4, WebM or MOV videos are allowed.' });
         }
       }
+      // Check frames for phone numbers before keeping anything.
+      for (const f of files) {
+        f.scan = await scanVideo(f.path);
+        const label = originalName(f, 'video');
+        if (f.scan.status === 'error') {
+          cleanup();
+          return res.status(503).json({ error: SCAN_UNAVAILABLE });
+        }
+        if (f.scan.status === 'invalid') {
+          cleanup();
+          return res.status(400).json({ error: `${label}: this video could not be read. Upload an MP4, WebM or MOV file.` });
+        }
+        if (f.scan.status === 'phone-found') {
+          cleanup();
+          const at = f.scan.seconds.slice(0, 3).map((s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`).join(', ');
+          return res.status(422).json({ error: `${label}: shows a phone number (${f.scan.found.join(', ')}) around ${at}. Remove it and upload again.` });
+        }
+      }
       const out = [];
       for (const f of files) {
         const name = newName(f.type.ext);
         fs.renameSync(f.path, path.join(MEDIA_DIR, name));
         const url = `/api/media/${name}`;
         const label = originalName(f, 'video');
-        await Upload.create({ name, url, kind: 'video', owner: req.userId, originalName: label, mime: f.type.mime, size: f.size });
+        const { status, found, engine } = f.scan;
+        await Upload.create({ name, url, kind: 'video', owner: req.userId, originalName: label, mime: f.type.mime, size: f.size, scan: { status, found, engine } });
         out.push({ url, name: label, size: f.size, mime: f.type.mime });
       }
       return res.status(201).json({ files: out });
@@ -142,13 +165,23 @@ export function handleBrochureUpload(req, res, next) {
       const files = req.files || [];
       if (!files.length) return res.status(400).json({ error: 'No brochures received.' });
       if (files.some((f) => sniff(f.buffer)?.mime !== 'application/pdf')) return res.status(400).json({ error: 'Brochures must be PDF files.' });
+      for (const f of files) {
+        const label = originalName(f, 'brochure.pdf');
+        f.scan = await scanPdf(f.buffer);
+        if (f.scan.status === 'error') return res.status(503).json({ error: SCAN_UNAVAILABLE });
+        if (f.scan.status === 'invalid') return res.status(400).json({ error: `${label}: this PDF could not be opened (damaged or password-protected).` });
+        if (f.scan.status === 'phone-found') {
+          return res.status(422).json({ error: `${label}: shows a phone number (${f.scan.found.join(', ')}) on page ${f.scan.pages.join(', ')}. Remove it and upload again.` });
+        }
+      }
       const out = [];
       for (const f of files) {
         const name = newName('.pdf');
         fs.writeFileSync(path.join(MEDIA_DIR, name), f.buffer);
         const url = `/api/media/${name}`;
         const label = originalName(f, 'brochure.pdf');
-        await Upload.create({ name, url, kind: 'brochure', owner: req.userId, originalName: label, mime: 'application/pdf', size: f.size });
+        const { status, found, engine } = f.scan;
+        await Upload.create({ name, url, kind: 'brochure', owner: req.userId, originalName: label, mime: 'application/pdf', size: f.size, scan: { status, found, engine } });
         out.push({ url, name: label, size: f.size, mime: 'application/pdf' });
       }
       return res.status(201).json({ files: out });

@@ -4,6 +4,7 @@ import { connectDB, disconnectDB, isMemoryDB } from './config/db.js';
 import Property from './models/Property.js';
 import { seedDatabase } from './data/seed.js';
 import { runMigrations } from './data/migrate.js';
+import { stopOcr, warmUpOcr } from './services/phoneScan.js';
 
 const PORT = process.env.PORT || 5000;
 
@@ -31,6 +32,8 @@ async function start() {
   const server = app.listen(PORT, () => {
     console.log(`[server] PropFinder API listening on http://localhost:${PORT}`);
   });
+  // Load the OCR engine now, so the first upload isn't slow and a broken install shows in the log.
+  warmUpOcr();
 
   // Shut down cleanly (Ctrl+C, nodemon restarts) so the in-memory DB removes its temp files.
   let stopping = false;
@@ -40,6 +43,7 @@ async function start() {
     console.log(`[server] ${signal} received — shutting down`);
     server.close();
     try {
+      await stopOcr();
       await disconnectDB();
     } finally {
       process.exit(0);

@@ -79,3 +79,9 @@ export function hasCoords(property) {
 export function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
+
+/** 2.4 MB, 380 KB */
+export function formatFileSize(bytes) {
+  if (!bytes) return '';
+  return bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}

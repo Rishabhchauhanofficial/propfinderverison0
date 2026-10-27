@@ -4,6 +4,7 @@ import { Helmet } from 'react-helmet-async';
 import { errorMessage, otpRequest, otpVerify } from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { ACTIVITY_CONSENT_TEXT, PUBLIC_ROLES } from '../utils/constants.js';
+import { passwordProblem } from '../utils/validate.js';
 
 /** Only allow same-site relative redirects, e.g. "/dashboard". */
 function safeRedirect(value) {
@@ -91,7 +92,7 @@ export default function AuthPage({ mode = 'login' }) {
     }
     if (!isLogin) {
       if (!form.name.trim()) return setError('Enter your full name.');
-      if (form.password.length < 8 || !/[A-Za-z]/.test(form.password) || !/d/.test(form.password)) return setError('Password must be at least 8 characters with a letter and a number.');
+      if (passwordProblem(form.password)) return setError(passwordProblem(form.password));
     }
     setBusy(true);
     try {

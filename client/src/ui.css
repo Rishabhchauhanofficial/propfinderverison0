@@ -490,3 +490,5 @@
 .activity-timeline li { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; padding: 6px 0; border-bottom: 1px solid #edf0f5; font-size: .9rem; }
 .activity-timeline li.is-yours { font-weight: 600; }
 @media (max-width: 560px) { .activity-prefs__row { grid-template-columns: 1fr; } .activity-timeline li { grid-template-columns: 22px 1fr; } .activity-timeline time { grid-column: 2; } }
+
+.doc-list li { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }

@@ -116,4 +116,5 @@ test('preferences: intent, places and the middle of the budget they looked at', 
   assert.equal(prefs.localities[0].value, 'Baner');
   assert.deepEqual(prefs.budget, { low: 11000000, high: 13000000, basedOn: 3 }); // rent price ignored
   assert.equal(preferencesFrom([ev('view', { price: 5000000, listingType: 'sale' })]).budget, null); // too few to say
+  assert.equal(preferencesFrom([ev('view', { listingType: 'sale' }), ev('save', { listingType: 'rent' })]).lookingTo, 'buy or rent');
 });

@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
+import { formatFileSize } from '../utils/format.js';
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
@@ -59,7 +60,7 @@ export default function MediaPanel({ item }) {
           {brochures.map((b) => (
             <li key={b.url}>
               <a href={b.src} target="_blank" rel="noopener noreferrer">📄 {b.name || 'Brochure'}</a>
-              {b.size ? <span className="tiny muted"> · {(b.size / 1048576).toFixed(1)} MB</span> : null}
+              {b.size ? <span className="tiny muted"> · {formatFileSize(b.size)}</span> : null}
             </li>
           ))}
         </ul>
