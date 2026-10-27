@@ -2,7 +2,25 @@ import Property from '../models/Property.js';
 import User from '../models/User.js';
 import { Favorite, SavedSearch, Notification, Lead, SiteVisit } from '../models/index.js';
 import { search, toCard, CARD_PROJECTION } from '../services/searchService.js';
-import { badRequest, cleanText, isId, notFound, wrap } from '../utils/http.js';
+import { audit, badRequest, cleanText, isId, notFound, wrap } from '../utils/http.js';
+import { CONSENT_TEXT, ownActivity, record, searchMeta, setSharing } from '../services/activityService.js';
+
+const ACTIVITY_FIELDS = 'owner title slug city locality propertyType listingType bedrooms price';
+
+/* GET /api/me/activity — what is shared with listers (the user's own full view). */
+export const myActivity = wrap(async (req, res) => {
+  const user = await User.findById(req.userId).select('activitySharing');
+  res.json(await ownActivity(user));
+});
+
+/* PUT /api/me/activity-sharing { enabled } — opt in, or opt out (which deletes the activity). */
+export const setActivitySharing = wrap(async (req, res) => {
+  if (typeof req.body?.enabled !== 'boolean') throw badRequest('Send { enabled: true } or { enabled: false }.');
+  const user = await User.findById(req.userId);
+  const state = await setSharing(user, req.body.enabled);
+  await audit(req, req.body.enabled ? 'activity-sharing.on' : 'activity-sharing.off', 'user', user._id, { version: state.version });
+  res.json({ enabled: state.enabled, consentedAt: state.consentedAt, consentText: CONSENT_TEXT });
+});
 
 /* ---------------- favourites ---------------- */
 
@@ -19,14 +37,20 @@ export const listFavorites = wrap(async (req, res) => {
 export const addFavorite = wrap(async (req, res) => {
   if (!isId(req.params.propertyId) || !(await Property.exists({ _id: req.params.propertyId }))) throw notFound('Property not found');
   const r = await Favorite.updateOne({ user: req.userId, property: req.params.propertyId }, { $setOnInsert: { user: req.userId, property: req.params.propertyId } }, { upsert: true });
-  if (r.upsertedCount) await Property.updateOne({ _id: req.params.propertyId }, { $inc: { favoritesCount: 1 } }, { timestamps: false });
+  if (r.upsertedCount) {
+    await Property.updateOne({ _id: req.params.propertyId }, { $inc: { favoritesCount: 1 } }, { timestamps: false });
+    record(req, 'save', { property: await Property.findById(req.params.propertyId).select(ACTIVITY_FIELDS).lean() });
+  }
   res.status(201).json({ ok: true, saved: true });
 });
 
 export const removeFavorite = wrap(async (req, res) => {
   if (!isId(req.params.propertyId)) throw notFound('Property not found');
   const r = await Favorite.deleteOne({ user: req.userId, property: req.params.propertyId });
-  if (r.deletedCount) await Property.updateOne({ _id: req.params.propertyId }, { $inc: { favoritesCount: -1 } }, { timestamps: false });
+  if (r.deletedCount) {
+    await Property.updateOne({ _id: req.params.propertyId }, { $inc: { favoritesCount: -1 } }, { timestamps: false });
+    record(req, 'unsave', { property: await Property.findById(req.params.propertyId).select(ACTIVITY_FIELDS).lean() });
+  }
   res.json({ ok: true, saved: false });
 });
 
@@ -59,6 +83,7 @@ export const createSavedSearch = wrap(async (req, res) => {
   if ((await SavedSearch.countDocuments({ user: req.userId })) >= 25) throw badRequest('You can keep up to 25 saved searches.');
   const name = cleanText(req.body?.name, 120) || [params.bedrooms && `${params.bedrooms}+ BHK`, params.propertyType, params.locality, params.city].filter(Boolean).join(' ') || 'My search';
   const s = await SavedSearch.create({ user: req.userId, name, params, notify: req.body?.notify !== false });
+  record(req, 'saved-search', { meta: searchMeta(params) });
   res.status(201).json({ ...s.toObject(), id: s.id });
 });
 

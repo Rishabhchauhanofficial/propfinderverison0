@@ -392,3 +392,21 @@ const uploadSchema = new Schema(
   { timestamps: true }
 );
 export const Upload = model('Upload', uploadSchema);
+
+/* ---------------- buyer activity (opt-in) ---------------- */
+
+// Recorded only for users who opted in to sharing; deleted after 30 days or when they opt out.
+// meta is a snapshot of the property (or search filters) at the time, so the summary stays
+// readable even if the listing changes, and other listers' properties can be described generally.
+export const ACTIVITY_TYPES = ['view', 'save', 'unsave', 'compare', 'contact', 'visit', 'search', 'saved-search'];
+const activityEventSchema = new Schema({
+  user: ref('User', { required: true, index: true }),
+  type: { type: String, enum: ACTIVITY_TYPES, required: true },
+  property: ref('Property', { default: null }),
+  owner: ref('User', { default: null }), // lister of that property
+  meta: { type: Schema.Types.Mixed, default: {} },
+  createdAt: { type: Date, default: Date.now },
+});
+activityEventSchema.index({ createdAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 30 });
+activityEventSchema.index({ user: 1, createdAt: -1 });
+export const ActivityEvent = model('ActivityEvent', activityEventSchema);

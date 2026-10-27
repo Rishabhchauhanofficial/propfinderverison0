@@ -167,6 +167,10 @@ export const saveSearch = (data) => http.post('/me/saved-searches', data).then(u
 export const touchSavedSearch = (id, data = {}) => http.patch(`/me/saved-searches/${enc(id)}`, data).then(unwrap);
 export const deleteSavedSearch = (id) => http.delete(`/me/saved-searches/${enc(id)}`).then(unwrap);
 export const recentlyViewed = () => http.get('/me/recently-viewed').then(unwrap);
+/* Opt-in activity sharing with listers the buyer contacts */
+export const myActivity = () => http.get('/me/activity').then(unwrap);
+export const setActivitySharing = (enabled) => http.put('/me/activity-sharing', { enabled }).then(unwrap);
+export const buyerActivity = (buyerId) => http.get(`/leads/buyers/${enc(buyerId)}/activity`).then(unwrap);
 export const clearRecentlyViewed = () => http.delete('/me/recently-viewed').then(unwrap);
 export const getNotifications = () => http.get('/me/notifications').then(unwrap);
 export const markNotificationsRead = (ids = []) => http.post('/me/notifications/read', { ids }).then(unwrap);

@@ -63,10 +63,13 @@ router.delete('/me/recently-viewed', requireAuth, me.clearRecentlyViewed);
 router.get('/me/notifications', requireAuth, me.notifications);
 router.post('/me/notifications/read', requireAuth, me.markNotificationsRead);
 router.get('/me/enquiries', requireAuth, me.myEnquiries);
+router.get('/me/activity', requireAuth, me.myActivity);
+router.put('/me/activity-sharing', requireAuth, writeLimiter, me.setActivitySharing);
 
 /* leads & visits */
 router.get('/leads', ...lister, leads.listLeads);
 router.patch('/leads/:id', ...lister, leads.updateLead);
+router.get('/leads/buyers/:buyerId/activity', ...lister, leads.buyerActivity);
 router.post('/visits', requireAuth, writeLimiter, leads.requestVisit);
 router.get('/visits', requireAuth, leads.listVisits);
 router.patch('/visits/:id', requireAuth, leads.updateVisit);

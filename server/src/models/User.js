@@ -26,6 +26,15 @@ const userSchema = new mongoose.Schema(
       reviews: { type: Boolean, default: true },
     },
 
+    // Opt-in (never pre-ticked, separate from the terms): share the last 30 days of property activity
+    // with listers this user has contacted. Turning it off deletes the activity log.
+    activitySharing: {
+      enabled: { type: Boolean, default: false },
+      consentedAt: { type: Date, default: null },
+      withdrawnAt: { type: Date, default: null },
+      version: { type: String, default: '' }, // wording the user agreed to (see activityService)
+    },
+
     // Last 20 viewed properties (most recent first).
     recentlyViewed: [
       {
@@ -62,6 +71,7 @@ userSchema.methods.toSafeJSON = function () {
     company: this.company,
     city: this.city,
     notificationPrefs: this.notificationPrefs,
+    activitySharing: { enabled: !!this.activitySharing?.enabled, consentedAt: this.activitySharing?.consentedAt || null },
     createdAt: this.createdAt,
   };
 };

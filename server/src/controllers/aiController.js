@@ -6,6 +6,7 @@ import { PRIORITY_MULTIPLIERS, SCORE_DEFS } from '../config/scoring.js';
 import { badRequest, forbidden, isId, notFound, str, toNum, wrap } from '../utils/http.js';
 import { formatINR } from '../utils/format.js';
 import { gateMedia } from '../services/mediaService.js';
+import { record } from '../services/activityService.js';
 
 async function loadProperty(idOrSlug, req) {
   const p = isId(idOrSlug) ? await Property.findById(idOrSlug) : await Property.findOne({ slug: idOrSlug }).sort({ createdAt: -1 });
@@ -71,6 +72,7 @@ export const compare = wrap(async (req, res) => {
 
   const ordered = ids.map((id) => docs.find((x) => x.id === id)).filter(Boolean);
   const reports = await Promise.all(ordered.map((d) => buildReport(d)));
+  for (const d of ordered) record(req, 'compare', { property: d });
   const items = ordered.map((d, i) => ({ property: gateMedia(d.toJSON({ virtuals: true }), { userId: req.userId }), report: reports[i], personalized: personalize(reports[i], { priorities }) }));
 
   // Per-dimension leaders (only where at least two have data).

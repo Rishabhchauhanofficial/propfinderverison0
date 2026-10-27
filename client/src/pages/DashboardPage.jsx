@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { createProject, deleteProperty, errorMessage, listLeads, listVisits, myProjects, myProperties, setPropertyStatus, updateLead, updateVisit } from '../api/client.js';
+import { buyerActivity, createProject, deleteProperty, errorMessage, listLeads, listVisits, myProjects, myProperties, setPropertyStatus, updateLead, updateVisit } from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useAsync } from '../hooks/useUi.js';
-import { DemoBadge, EmptyState, ErrorState, ReraBadge } from '../components/ui.jsx';
+import { DemoBadge, EmptyState, ErrorState, Modal, ReraBadge } from '../components/ui.jsx';
+import ActivityView from '../components/ActivityView.jsx';
 import { formatArea, formatDate, formatINR, labelize, propertyId, propertyPath } from '../utils/format.js';
 import { LISTER_ROLES } from '../utils/constants.js';
 
@@ -91,6 +92,16 @@ function LeadRow({ lead, onChanged }) {
   const toast = useToast();
   const [note, setNote] = useState('');
   const [open, setOpen] = useState(false);
+  const [activity, setActivity] = useState(null); // null = closed, {} = loading
+  async function showActivity() {
+    setActivity({ loading: true });
+    try {
+      setActivity(await buyerActivity(lead.buyer));
+    } catch (err) {
+      setActivity(null);
+      toast.show(errorMessage(err), 'error');
+    }
+  }
   async function patch(data) {
     try {
       await updateLead(lead._id, data);
@@ -121,8 +132,13 @@ function LeadRow({ lead, onChanged }) {
           </select>
           <input className="input input--sm" type="date" aria-label="Follow-up date" value={lead.followUpAt ? String(lead.followUpAt).slice(0, 10) : ''} onChange={(e) => patch({ followUpAt: e.target.value || null })} />
           <button type="button" className="link-btn small" onClick={() => setOpen((o) => !o)}>Notes ({lead.notes?.length || 0})</button>
+          {lead.buyerSharesActivity && <button type="button" className="btn btn--outline btn--sm" onClick={showActivity}>Buyer activity</button>}
         </div>
       </div>
+      <Modal open={!!activity} title={`${lead.name}: last 30 days`} onClose={() => setActivity(null)} size="lg">
+        {activity?.loading && <p className="small muted">Loading…</p>}
+        {activity && !activity.loading && (activity.sharing ? <ActivityView data={activity} forLister /> : <p className="small">This buyer has stopped sharing their activity.</p>)}
+      </Modal>
       {open && (
         <div className="lead__notes">
           <ul>{(lead.notes || []).map((n, i) => <li key={i} className="small"><span className="muted">{formatDate(n.at)}:</span> {n.body}</li>)}</ul>

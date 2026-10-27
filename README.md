@@ -97,6 +97,22 @@ Listings and projects are attached to a `Location` tree (country → state → d
 - **Adding a single place:** add it to `locations.seed.js` under its parent with a unique slug and restart.
 - **API:** `GET /api/locations/search?q=`, `GET /api/locations/:slug` (breadcrumb, children with listing counts; alias slugs return `{ redirect }`), `GET /api/locations/appears-on?city=&locality=`.
 
+### Media access and phone-number checks
+
+- **Signed-out visitors** see the first `PUBLIC_IMAGE_COUNT` photos (default 2) and counts of what's hidden. Everything else needs a login: all photos, videos, brochures and the video link. This applies to property pages, search cards, compare and projects.
+- **Videos and brochures** (MP4/WebM/MOV up to 100 MB; PDF up to 25 MB) are stored in `uploads-private/media`. They're served only through signed links that are tied to the user and expire after 2 hours (`GET /api/media/:name`).
+- **Phone-number check:** every uploaded photo is read with OCR (Tesseract, `PHONE_SCAN=ocr`) and refused if it shows an Indian mobile, landline or toll-free number. Titles and descriptions containing phone numbers are refused too.
+- **OCR availability:** if OCR is unavailable, photos are accepted and marked `unscanned` in the `Upload` collection. Videos and brochures are not scanned.
+- **Linking rules:** a listing can only use files its lister uploaded. Image links can no longer be added, because they can't be scanned; existing ones are kept.
+
+### Buyer activity for listers (opt-in)
+
+- **Consent:** buyers opt in with a separate, unticked checkbox at sign-up or in Profile. It is not bundled into the terms, so the consent stays valid under the DPDP Act. The consent time and the version of the wording are stored. Without consent, nothing is recorded.
+- **What's recorded:** views, saves, compares, enquiries, site-visit requests, searches (filters only, no free text) and saved searches, in `ActivityEvent`. Events expire after 30 days, and opting out deletes them immediately.
+- **Who can see it:** a lister sees a buyer's activity (`GET /api/leads/buyers/:id/activity`, the "Buyer activity" button on dashboard leads) only if that buyer opted in and contacted that lister. Each view is written to the audit log.
+- **Other listers' properties:** activity there is described in general terms only, never the listing or the lister.
+- **Buyer's own view:** buyers can see exactly what is shared under Profile (`GET /api/me/activity`).
+
 v1 users with role `user` keep working (treated as buyer, with listing rights). TTL indexes expire OTPs, search analytics (90 days) and integration events (14 days).
 
 ---

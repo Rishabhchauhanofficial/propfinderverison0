@@ -1,9 +1,51 @@
 import { useState } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { changePassword, errorMessage, updateProfile } from '../api/client.js';
+import { changePassword, errorMessage, myActivity, setActivitySharing, updateProfile } from '../api/client.js';
+import ActivityView from '../components/ActivityView.jsx';
+import { useAsync } from '../hooks/useUi.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
-import { PUBLIC_ROLES } from '../utils/constants.js';
+import { ACTIVITY_CONSENT_TEXT, PUBLIC_ROLES } from '../utils/constants.js';
+
+/** Opt-in sharing of the last 30 days of activity with listers the user contacts, and the user's own view of it. */
+function ActivitySharing() {
+  const { user, updateUser } = useAuth();
+  const toast = useToast();
+  const res = useAsync(myActivity, []);
+  const [busy, setBusy] = useState(false);
+  const [show, setShow] = useState(false);
+  const enabled = res.data ? res.data.sharing : !!user.activitySharing?.enabled;
+  async function toggle(next) {
+    if (!next && !window.confirm('Stop sharing? Your recorded activity will be deleted.')) return;
+    setBusy(true);
+    try {
+      const r = await setActivitySharing(next);
+      updateUser({ ...user, activitySharing: { enabled: r.enabled, consentedAt: r.consentedAt } });
+      res.reload();
+      toast.show(next ? 'Sharing turned on.' : 'Sharing turned off and your activity was deleted.', 'success');
+    } catch (err) {
+      toast.show(errorMessage(err), 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <section className="panel" aria-labelledby="sharing-title">
+      <h2 id="sharing-title" className="panel__title">Share my activity with listers</h2>
+      <label className="check consent">
+        <input type="checkbox" checked={enabled} disabled={busy || res.status === 'loading'} onChange={(e) => toggle(e.target.checked)} />
+        <span className="small">{ACTIVITY_CONSENT_TEXT}</span>
+      </label>
+      <p className="tiny muted">Only listers you have contacted can see it. Your activity on other listers' properties is shown to them in general terms only (for example "a 3 BHK apartment in Baner, Pune"), never the listing itself.</p>
+      {enabled && res.data && (
+        <>
+          <button type="button" className="link-btn small" onClick={() => setShow((v) => !v)}>{show ? 'Hide' : 'See'} what is shared</button>
+          {show && <ActivityView data={res.data} />}
+        </>
+      )}
+    </section>
+  );
+}
 
 export default function ProfilePage() {
   const { user, updateUser } = useAuth();
@@ -58,6 +100,8 @@ export default function ProfilePage() {
         </fieldset>
         <div className="form-field--full"><button className="btn btn--primary" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save changes'}</button></div>
       </form>
+
+      <ActivitySharing />
 
       {!user.email.endsWith('.local') && (
         <form

@@ -9,7 +9,7 @@ function readToken(req) {
 
 async function attachUser(req, token) {
   const payload = verifyToken(token);
-  const user = await User.findById(payload.sub).select('name email role status phone company');
+  const user = await User.findById(payload.sub).select('name email role status phone company activitySharing');
   if (!user) throw Object.assign(new Error('User not found'), { status: 401 });
   if (user.status === 'suspended') throw Object.assign(new Error('This account is suspended.'), { status: 403 });
   req.userId = String(user._id);

@@ -2,6 +2,8 @@ import mongoose from 'mongoose';
 import Property from '../models/Property.js';
 import { Lead, SiteVisit, LEAD_STATUSES } from '../models/index.js';
 import { notify } from '../services/notificationService.js';
+import { buyerActivityFor, canSeeBuyer, record } from '../services/activityService.js';
+import User from '../models/User.js';
 import { audit, badRequest, cleanText, forbidden, isId, notFound, paging, str, wrap } from '../utils/http.js';
 
 /* ---------------- leads (listing owner's view) ---------------- */
@@ -22,7 +24,25 @@ export const listLeads = wrap(async (req, res) => {
       { $group: { _id: '$status', n: { $sum: 1 } } },
     ]),
   ]);
+  // Which of these buyers chose to share their activity with listers they contact.
+  const sharing = new Set(
+    (await User.find({ _id: { $in: items.map((l) => l.buyer).filter(Boolean) }, 'activitySharing.enabled': true }).select('_id').lean()).map((u) => String(u._id))
+  );
+  for (const l of items) l.buyerSharesActivity = !!l.buyer && sharing.has(String(l.buyer));
   res.json({ items, total, page, pages: Math.ceil(total / limit), byStatus: Object.fromEntries(byStatus.map((s) => [s._id, s.n])) });
+});
+
+/* GET /api/leads/buyers/:buyerId/activity — the buyer's last 30 days, if they opted in and contacted you. */
+export const buyerActivity = wrap(async (req, res) => {
+  if (!isId(req.params.buyerId)) throw notFound('Buyer not found');
+  if (!(await canSeeBuyer({ listerId: req.userId, buyerId: req.params.buyerId, isAdmin: req.role === 'admin' }))) {
+    throw forbidden('You can see the activity of buyers who have contacted you about one of your listings.');
+  }
+  const buyer = await User.findById(req.params.buyerId).select('name activitySharing').lean();
+  if (!buyer) throw notFound('Buyer not found');
+  const out = await buyerActivityFor({ listerId: req.userId, buyer });
+  if (out.sharing) await audit(req, 'buyer-activity.view', 'user', buyer._id, {});
+  res.json(out);
 });
 
 async function ownLead(req) {
@@ -54,7 +74,7 @@ export const updateLead = wrap(async (req, res) => {
 export const requestVisit = wrap(async (req, res) => {
   const b = req.body || {};
   if (!isId(b.propertyId)) throw notFound('Property not found');
-  const property = await Property.findById(b.propertyId).select('owner title status slug');
+  const property = await Property.findById(b.propertyId).select('owner title status slug city locality propertyType listingType bedrooms price');
   if (!property || property.status !== 'active') throw notFound('Property not found');
   if (String(property.owner) === req.userId) throw badRequest('This is your own listing.');
   const when = new Date(b.scheduledAt);
@@ -93,6 +113,7 @@ export const requestVisit = wrap(async (req, res) => {
     body: `${req.user.name} proposed ${when.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' })}.`,
     link: '/dashboard?tab=visits',
   });
+  record(req, 'visit', { property });
   res.status(201).json({ visit, message: 'Visit requested. The lister will confirm or suggest another time.' });
 });
 

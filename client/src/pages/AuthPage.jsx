@@ -3,7 +3,7 @@ import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { errorMessage, otpRequest, otpVerify } from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import { PUBLIC_ROLES } from '../utils/constants.js';
+import { ACTIVITY_CONSENT_TEXT, PUBLIC_ROLES } from '../utils/constants.js';
 
 /** Only allow same-site relative redirects, e.g. "/dashboard". */
 function safeRedirect(value) {
@@ -33,7 +33,7 @@ export default function AuthPage({ mode = 'login' }) {
   const [devCode, setDevCode] = useState('');
 
   // ----- password state -----
-  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', role: params.get('role') || 'buyer', company: '' });
+  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', role: params.get('role') || 'buyer', company: '', shareActivity: false });
   const setF = (field, value) => setForm((f) => ({ ...f, [field]: value }));
 
   if (user) return <Navigate to={redirect} replace />;
@@ -98,7 +98,7 @@ export default function AuthPage({ mode = 'login' }) {
       if (isLogin) {
         await login({ email, password: form.password });
       } else {
-        await register({ name: form.name.trim(), email, phone: form.phone.trim(), password: form.password, role: form.role, company: form.company.trim() });
+        await register({ name: form.name.trim(), email, phone: form.phone.trim(), password: form.password, role: form.role, company: form.company.trim(), shareActivity: form.shareActivity === true });
       }
       navigate(redirect, { replace: true });
     } catch (err) {
@@ -269,6 +269,14 @@ export default function AuthPage({ mode = 'login' }) {
               {!isLogin && <span className="hint">At least 8 characters, with a letter and a number.</span>}
               {isLogin && <Link to="/forgot-password" className="hint">Forgot password?</Link>}
             </label>
+            {!isLogin && (
+              <label className="check consent">
+                <input type="checkbox" checked={form.shareActivity} onChange={(e) => setF('shareActivity', e.target.checked)} />
+                <span className="small">
+                  <strong>Optional:</strong> {ACTIVITY_CONSENT_TEXT}
+                </span>
+              </label>
+            )}
             {error && <div className="alert alert--error" role="alert">{error}</div>}
             <button type="submit" className="btn btn--primary btn--block btn--lg" disabled={busy}>
               {busy ? 'Please wait…' : isLogin ? 'Sign in' : 'Create account'}

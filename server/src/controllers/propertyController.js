@@ -9,6 +9,7 @@ import { haversineKm, isValidCoords } from '../utils/geo.js';
 import { assignLocation } from '../services/locationService.js';
 import { gateMedia, validateMedia } from '../services/mediaService.js';
 import { containsPhone } from '../services/phoneScan.js';
+import { record, searchMeta } from '../services/activityService.js';
 
 const OWNER_FIELDS = 'name role company';
 
@@ -164,6 +165,9 @@ export const list = wrap(async (req, res) => {
     filters: filterKeys.slice(0, 20),
     results: result.total,
   }).catch(() => {});
+  // Opted-in users only: what they searched for (filters, not free text), first page only.
+  const meta = searchMeta(req.query);
+  if (Object.keys(meta).length && (Number(req.query.page) || 1) === 1) record(req, 'search', { meta });
   res.json(result);
 });
 
@@ -184,6 +188,7 @@ export const getOne = wrap(async (req, res) => {
   if (['draft', 'paused', 'archived'].includes(property.status) && !canSeeHidden) throw notFound('Property not found');
 
   if (!isOwner) Property.updateOne({ _id: property._id }, { $inc: { views: 1 } }, { timestamps: false }).catch(() => {});
+  if (!isOwner) record(req, 'view', { property });
   if (req.userId) {
     User.updateOne({ _id: req.userId }, { $pull: { recentlyViewed: { property: property._id } } })
       .then(() =>
@@ -371,6 +376,7 @@ export const contact = wrap(async (req, res) => {
     await lead.save();
   }
 
+  record(req, 'contact', { property });
   const sharePhone = property.contactPreference !== 'chat' && property.owner.phone;
   res.status(201).json({
     ok: true,

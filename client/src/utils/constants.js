@@ -81,3 +81,9 @@ export const RERA_STATE_OPTIONS = [
 
 /** Default map centre: India. */
 export const INDIA_CENTER = [20.5937, 78.9629];
+
+// Same wording as the server's CONSENT_TEXT (services/activityService.js); keep them in sync.
+export const ACTIVITY_CONSENT_TEXT =
+  'Share my property activity with listers I contact: the properties I view, save, compare and enquire about, ' +
+  'my searches and the forms I submit on PropFinder in the last 30 days, so they can suggest better matches. ' +
+  'I can turn this off at any time in my profile, which deletes this activity.';

@@ -8,7 +8,7 @@ const router = Router();
 // Static paths must be registered before "/:id".
 router.get('/mine', requireAuth, propertyController.mine);
 router.get('/suggest', propertyController.suggest);
-router.get('/', propertyController.list);
+router.get('/', optionalAuth, propertyController.list);
 router.post('/', requireAuth, writeLimiter, propertyController.create);
 
 router.get('/:id', optionalAuth, propertyController.getOne);

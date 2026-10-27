@@ -4,6 +4,7 @@ import User, { PUBLIC_ROLES } from '../models/User.js';
 import Otp from '../models/Otp.js';
 import { signToken } from '../utils/token.js';
 import { audit, cleanText } from '../utils/http.js';
+import { CONSENT_VERSION } from '../services/activityService.js';
 
 const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
 const normalizePhone = (p) => String(p || '').replace(/[^\d+]/g, '').trim();
@@ -46,6 +47,10 @@ export async function register(req, res, next) {
       city: cleanText(city, 60),
     });
     await user.setPassword(String(password));
+    // Separate, unticked opt-in on the sign-up form; only an explicit true counts as consent.
+    if (req.body?.shareActivity === true) {
+      user.activitySharing = { enabled: true, consentedAt: new Date(), withdrawnAt: null, version: CONSENT_VERSION };
+    }
     await user.save();
 
     return res.status(201).json({ token: signToken(user.id), user: user.toSafeJSON() });
