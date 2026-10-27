@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+.env
+*.log
+.DS_Store
+.vite/
+coverage/
+server/uploads/
+.e2e/
+uploads-private/
+.tmp/
+.npm-cache/
+.npmrc
+.env.*
+!.env.example

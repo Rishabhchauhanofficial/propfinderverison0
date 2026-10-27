@@ -1,0 +1,15 @@
+{
+  "name": "propfinder",
+  "version": "2.0.0",
+  "private": true,
+  "description": "PropFinder — MERN property marketplace with AI property intelligence, RERA verification, reviews and an AI assistant",
+  "scripts": {
+    "install:all": "cd server && npm install && cd ../client && npm install",
+    "seed": "cd server && npm run seed",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "test": "cd server && npm test && cd ../client && npm test",
+    "lint": "cd server && npm run lint && cd ../client && npm run lint",
+    "build": "cd client && npm run build"
+  }
+}
