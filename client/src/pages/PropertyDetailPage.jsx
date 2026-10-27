@@ -8,6 +8,7 @@ import ReraPanel from '../components/report/ReraPanel.jsx';
 import Reviews from '../components/Reviews.jsx';
 import ContactPanel from '../components/ContactPanel.jsx';
 import ReportDialog from '../components/ReportDialog.jsx';
+import MediaPanel from '../components/MediaPanel.jsx';
 import { DemoBadge, EmptyState, PanelSkeleton, ReraBadge, Skeleton } from '../components/ui.jsx';
 import { SourceTag } from '../components/AiBadge.jsx';
 import { useShortlist } from '../context/ShortlistContext.jsx';
@@ -30,7 +31,7 @@ function jsonLd(p, url) {
   };
 }
 
-function Gallery({ images, title, isDemo }) {
+function Gallery({ images, total, title, isDemo }) {
   const [active, setActive] = useState(0);
   const [lightbox, setLightbox] = useState(false);
   const touch = useRef(null);
@@ -75,7 +76,7 @@ function Gallery({ images, title, isDemo }) {
             <button type="button" className="gallery__nav gallery__nav--next" aria-label="Next photo" onClick={() => go(1)}>›</button>
           </>
         )}
-        <span className="gallery__count">{active + 1} / {n}{isDemo ? ' · demo placeholder photos' : ''}</span>
+        <span className="gallery__count">{active + 1} / {n}{total > n ? ` · ${total - n} more after sign-in` : ''}{isDemo ? ' · demo placeholder photos' : ''}</span>
       </div>
       {n > 1 && (
         <div className="gallery__thumbs">
@@ -252,7 +253,8 @@ export default function PropertyDetailPage() {
 
       <div className="detail-grid">
         <div className="detail-main">
-          <Gallery key={pid} images={images} title={property.title} isDemo={property.isDemo} />
+          <Gallery key={pid} images={images} total={property.media?.images} title={property.title} isDemo={property.isDemo} />
+          <MediaPanel item={property} />
 
           <header className="detail__head">
             <div className="detail__tags">

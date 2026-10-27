@@ -4,6 +4,7 @@ import { CARD_PROJECTION, toCard } from '../services/searchService.js';
 import { summarize as reraSummary, stateCodeFor, authorityFor } from '../services/reraService.js';
 import { slugify } from '../utils/slug.js';
 import { assignLocation } from '../services/locationService.js';
+import { cardImages, gateMedia, validateMedia } from '../services/mediaService.js';
 import { audit, badRequest, cleanText, escapeRegex, forbidden, isId, notFound, paging, str, toNum, wrap } from '../utils/http.js';
 
 const STATUSES = ['pre-launch', 'under-construction', 'ready', 'completed'];
@@ -18,7 +19,7 @@ export const list = wrap(async (req, res) => {
   const [items, total] = await Promise.all([Project.find(filter).sort({ updatedAt: -1 }).skip(skip).limit(limit).lean(), Project.countDocuments(filter)]);
   const counts = await Property.aggregate([{ $match: { project: { $in: items.map((p) => p._id) }, status: 'active' } }, { $group: { _id: '$project', n: { $sum: 1 } } }]);
   const byId = Object.fromEntries(counts.map((c) => [String(c._id), c.n]));
-  res.json({ items: items.map((p) => ({ ...p, id: String(p._id), listings: byId[String(p._id)] || 0 })), total, page, pages: Math.ceil(total / limit) });
+  res.json({ items: items.map((p) => ({ ...p, ...cardImages(p.images), videos: [], brochures: [], videoUrl: '', id: String(p._id), listings: byId[String(p._id)] || 0 })), total, page, pages: Math.ceil(total / limit) });
 });
 
 export const getOne = wrap(async (req, res) => {
@@ -34,7 +35,7 @@ export const getOne = wrap(async (req, res) => {
   const code = stateCodeFor({ state: project.state || project.rera?.state, city: project.city });
   const rera = reraSummary({ property: { ...project, constructionStatus: project.status === 'ready' || project.status === 'completed' ? 'ready' : 'under-construction', project: project._id, listingType: 'sale', rera: project.rera, city: project.city, state: code }, record });
   res.json({
-    project: { ...project, id: String(project._id) },
+    project: gateMedia({ ...project, id: String(project._id) }, { userId: req.userId }),
     developer: project.developer
       ? {
           name: project.developer.name,
@@ -72,7 +73,10 @@ function pickProject(b = {}) {
     priceFrom: toNum(b.priceFrom),
     priceTo: toNum(b.priceTo),
     amenities: (Array.isArray(b.amenities) ? b.amenities : []).map((a) => cleanText(a, 60)).filter(Boolean).slice(0, 40),
-    images: (Array.isArray(b.images) ? b.images : []).filter((u) => /^(https:\/\/|\/uploads\/)/.test(u)).slice(0, 20),
+    images: (Array.isArray(b.images) ? b.images : []).map(String).slice(0, 20), // checked in validateMedia
+    videos: Array.isArray(b.videos) ? b.videos : [],
+    brochures: Array.isArray(b.brochures) ? b.brochures : [],
+    videoUrl: /^https:\/\//.test(String(b.videoUrl || '')) ? cleanText(b.videoUrl, 300) : '',
     location: { lat: toNum(b.location?.lat), lng: toNum(b.location?.lng) },
   };
 }
@@ -115,7 +119,8 @@ export const create = wrap(async (req, res) => {
     developer = await Developer.findOneAndUpdate({ name: devName }, { $setOnInsert: { name: devName, account: req.role === 'builder' ? req.userId : null } }, { upsert: true, new: true });
     if (developer.account && String(developer.account) !== req.userId && req.role !== 'admin') throw forbidden('This developer is managed by another account.');
   }
-  const project = new Project({ ...data, slug: `${slugify(`${data.name} ${data.locality} ${data.city}`)}-${Date.now().toString(36).slice(-4)}`, developer: developer?._id || null, developerName: devName, createdBy: req.userId });
+  Object.assign(data, await validateMedia(data, {}, { userId: req.userId, isAdmin: req.role === 'admin' }));
+  const project = new Project({ ...data, slug:`${slugify(`${data.name} ${data.locality} ${data.city}`)}-${Date.now().toString(36).slice(-4)}`, developer: developer?._id || null, developerName: devName, createdBy: req.userId });
   await syncProjectRera(project, req.body || {}, req);
   await assignLocation(project, { force: true });
   await project.save();
@@ -129,6 +134,7 @@ export const update = wrap(async (req, res) => {
   if (!project) throw notFound('Project not found');
   if (String(project.createdBy) !== req.userId && req.role !== 'admin') throw forbidden('Not your project');
   const data = pickProject({ ...project.toObject(), ...req.body });
+  Object.assign(data, await validateMedia(data, project.toObject(), { userId: req.userId, isAdmin: req.role === 'admin' }));
   project.set(data);
   await syncProjectRera(project, req.body || {}, req);
   await assignLocation(project);

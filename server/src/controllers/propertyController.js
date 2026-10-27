@@ -7,6 +7,8 @@ import { notify } from '../services/notificationService.js';
 import { audit, badRequest, cleanText, forbidden, isId, notFound, str, toNum, wrap } from '../utils/http.js';
 import { haversineKm, isValidCoords } from '../utils/geo.js';
 import { assignLocation } from '../services/locationService.js';
+import { gateMedia, validateMedia } from '../services/mediaService.js';
+import { containsPhone } from '../services/phoneScan.js';
 
 const OWNER_FIELDS = 'name role company';
 
@@ -15,7 +17,7 @@ const WRITABLE = [
   'title', 'description', 'listingType', 'propertyType', 'price', 'areaSqft', 'carpetAreaSqft', 'plotAreaSqft',
   'bedrooms', 'bathrooms', 'balconies', 'furnishing', 'floor', 'totalFloors', 'facing', 'ageYears', 'constructionStatus',
   'possessionDate', 'maintenanceMonthly', 'securityDeposit', 'city', 'locality', 'state', 'pinCode', 'address', 'location',
-  'amenities', 'images', 'videoUrl', 'developerName', 'project', 'contactPreference', 'documents',
+  'amenities', 'images', 'videoUrl', 'developerName', 'project', 'contactPreference', 'documents', 'videos', 'brochures',
 ];
 const OWNER_STATUSES = ['draft', 'active', 'paused', 'archived', 'sold', 'rented'];
 
@@ -28,9 +30,7 @@ function pickWritable(body = {}) {
   if (out.description !== undefined) out.description = cleanText(out.description, 5000);
   if (out.pinCode !== undefined) out.pinCode = String(out.pinCode).replace(/\D/g, '').slice(0, 6);
   if (out.amenities !== undefined) out.amenities = (Array.isArray(out.amenities) ? out.amenities : []).map((a) => cleanText(a, 60)).filter(Boolean).slice(0, 40);
-  if (out.images !== undefined) {
-    out.images = (Array.isArray(out.images) ? out.images : []).map(String).filter((u) => /^(https:\/\/|http:\/\/|\/uploads\/)/i.test(u)).slice(0, 20);
-  }
+  // images, videos and brochures are checked against the uploader's files in checkMedia().
   if (out.documents !== undefined) {
     out.documents = (Array.isArray(out.documents) ? out.documents : [])
       .filter((d) => d && /^\/api\/files\/[\w-]+\.\w+$/.test(d.url))
@@ -43,8 +43,18 @@ function pickWritable(body = {}) {
   return out;
 }
 
+/** Apply the media rules (own uploads only, scanned photos) to the fields in this request. */
+async function checkMedia(property, data, req) {
+  const prev = property.isNew ? {} : property.toObject();
+  const media = await validateMedia(data, prev, { userId: req.userId, isAdmin: req.role === 'admin' });
+  property.set(media);
+}
+
 function validateListing(p) {
   if (!p.title || p.title.length < 5) return 'Title should be at least 5 characters.';
+  if (containsPhone(`${p.title} ${p.description || ''}`)) {
+    return 'Please remove phone numbers from the title and description. Buyers contact you through PropFinder, and every enquiry reaches you as a lead.';
+  }
   if (!(p.price > 0)) return 'Enter a valid price in rupees.';
   if (!(p.areaSqft > 0)) return 'Enter the area in sq ft.';
   if (p.carpetAreaSqft && p.carpetAreaSqft > p.areaSqft * 1.05 && p.propertyType !== 'plot') return 'Carpet area cannot be larger than the built-up area.';
@@ -201,7 +211,8 @@ export const getOne = wrap(async (req, res) => {
     .populate('owner', OWNER_FIELDS)
     .lean();
 
-  const out = serialize(property, { isOwner: Boolean(isOwner) });
+  // Signed out: first photos only; videos, brochures and the video link need a login.
+  const out = gateMedia(serialize(property, { isOwner: Boolean(isOwner) }), { userId: req.userId });
   // Documents are private to the owner and admins.
   if (!canSeeHidden) delete out.documents;
   out.isFavorite = req.userId ? Boolean(await Favorite.exists({ user: req.userId, property: property._id })) : false;
@@ -224,6 +235,7 @@ export const create = wrap(async (req, res) => {
     owner: req.userId,
     postedByRole: ['agent', 'builder', 'admin'].includes(req.role) ? req.role : 'owner',
   });
+  await checkMedia(property, data, req);
   applyRera(property, req.body || {});
   if (status !== 'draft') {
     const err = validateListing(property);
@@ -253,7 +265,10 @@ async function findManageable(req) {
 
 export const update = wrap(async (req, res) => {
   const property = await findManageable(req);
-  property.set(pickWritable(req.body));
+  const data = pickWritable(req.body);
+  await checkMedia(property, data, req); // sets the checked images/videos/brochures
+  for (const k of ['images', 'videos', 'brochures']) delete data[k];
+  property.set(data);
   applyRera(property, req.body || {});
   if (req.body?.status !== undefined) {
     if (!OWNER_STATUSES.includes(req.body.status)) throw badRequest('Invalid status');

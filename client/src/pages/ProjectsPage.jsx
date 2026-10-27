@@ -5,6 +5,7 @@ import { getProject, listProjects } from '../api/client.js';
 import { useAsync } from '../hooks/useUi.js';
 import PropertyCard from '../components/PropertyCard.jsx';
 import Reviews from '../components/Reviews.jsx';
+import MediaPanel from '../components/MediaPanel.jsx';
 import { DemoBadge, EmptyState, ErrorState, GridSkeleton, PanelSkeleton, ReraBadge, Reveal } from '../components/ui.jsx';
 import { formatDate, formatINR, labelize } from '../utils/format.js';
 
@@ -105,6 +106,7 @@ export function ProjectDetailPage() {
 
       <div className="detail-grid">
         <div className="detail-main">
+          <MediaPanel item={p} />
           <section className="panel">
             <h2 className="panel__title">Project facts</h2>
             <dl className="specs">

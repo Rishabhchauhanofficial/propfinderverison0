@@ -8,7 +8,7 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "seed": "node src/data/seed.js",
-    "test": "node --test --test-concurrency=1 test/units.test.mjs test/api.test.mjs test/locations.test.mjs",
+    "test": "node --test --test-concurrency=1 test/units.test.mjs test/api.test.mjs test/locations.test.mjs test/media.test.mjs",
     "lint": "eslint src test",
     "import:locations": "node src/data/importLocations.js"
   },
@@ -23,7 +23,8 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.6.0",
     "morgan": "^1.10.0",
-    "multer": "^1.4.5-lts.1"
+    "multer": "^1.4.5-lts.1",
+    "tesseract.js": "^6.0.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

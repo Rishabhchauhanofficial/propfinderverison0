@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AMENITIES, FURNISHING_OPTIONS, PROPERTY_TYPES, RERA_STATE_OPTIONS } from '../utils/constants.js';
-import { draftDescription, errorMessage, geocode, myProjects, openPrivateFile, uploadDocuments, uploadImages } from '../api/client.js';
+import { draftDescription, errorMessage, geocode, myProjects, openPrivateFile, uploadBrochures, uploadDocuments, uploadImages, uploadVideos } from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { formatINR } from '../utils/format.js';
 import MapView from './MapView.jsx';
@@ -41,6 +41,8 @@ const EMPTY = {
   amenities: [],
   images: [],
   videoUrl: '',
+  videos: [],
+  brochures: [],
   developerName: '',
   project: '',
   reraNumber: '',
@@ -89,6 +91,8 @@ export function toFormValues(p) {
     amenities: Array.isArray(p.amenities) ? p.amenities : [],
     images: Array.isArray(p.images) ? p.images : [],
     videoUrl: str(p.videoUrl),
+    videos: Array.isArray(p.videos) ? p.videos.map(({ url, name, size }) => ({ url, name, size })) : [],
+    brochures: Array.isArray(p.brochures) ? p.brochures.map(({ url, name, size }) => ({ url, name, size })) : [],
     developerName: str(p.developerName),
     project: str(p.project?._id || p.project),
     reraNumber: str(p.rera?.number),
@@ -133,6 +137,8 @@ export function toPayload(v) {
     amenities: v.amenities,
     images: v.images,
     videoUrl: v.videoUrl.trim(),
+    videos: v.videos,
+    brochures: v.brochures,
     developerName: v.developerName.trim(),
     project: v.project || null,
     rera: { number: v.reraNumber.trim(), state: v.reraState, projectName: v.reraProjectName.trim(), notApplicable: v.reraNotApplicable },
@@ -203,6 +209,9 @@ export default function PropertyForm({ initialValues, submitLabel = 'Publish lis
   const [docUpload, setDocUpload] = useState({ busy: false, error: '' });
   const fileInputRef = useRef(null);
   const docInputRef = useRef(null);
+  const videoInputRef = useRef(null);
+  const brochureInputRef = useRef(null);
+  const [mediaUpload, setMediaUpload] = useState({ field: '', error: '' });
 
   const isRent = values.listingType === 'rent';
   const isPlot = values.propertyType === 'plot';
@@ -235,11 +244,23 @@ export default function PropertyForm({ initialValues, submitLabel = 'Publish lis
     if (!files.length) return;
     setUpload((u) => ({ ...u, busy: true, error: '' }));
     try {
-      const { urls } = await uploadImages(files);
+      const { urls, rejected = [] } = await uploadImages(files);
       setValues((prev) => ({ ...prev, images: [...prev.images, ...urls].slice(0, 20) }));
-      setUpload({ busy: false, error: '', dragging: false });
+      setUpload({ busy: false, error: rejected.map((r) => `${r.name}: ${r.reason}`).join(' '), dragging: false });
     } catch (err) {
       setUpload({ busy: false, error: errorMessage(err, 'Upload failed. Try smaller images.'), dragging: false });
+    }
+  }
+
+  async function handleMedia(field, fileList) {
+    if (!fileList?.length) return;
+    setMediaUpload({ field, error: '' });
+    try {
+      const { files } = await (field === 'videos' ? uploadVideos : uploadBrochures)(fileList);
+      setValues((prev) => ({ ...prev, [field]: [...prev[field], ...files.map(({ url, name, size }) => ({ url, name, size }))].slice(0, 5) }));
+      setMediaUpload({ field: '', error: '' });
+    } catch (err) {
+      setMediaUpload({ field: '', error: errorMessage(err, 'Upload failed.') });
     }
   }
 
@@ -532,16 +553,30 @@ export default function PropertyForm({ initialValues, submitLabel = 'Publish lis
                 ))}
               </div>
             )}
-            <details className="url-add">
-              <summary>Or add a photo by URL</summary>
-              <div className="geo-row">
-                <input className="input" id="img-url" placeholder="https://…" />
-                <button type="button" className="btn btn--outline" onClick={() => { const el = document.getElementById('img-url'); const u = el.value.trim(); if (/^https:\/\//.test(u)) { set('images', [...values.images, u]); el.value = ''; } }}>Add</button>
-              </div>
-              <span className="hint">Only use photos you own or have permission to use.</span>
-            </details>
+            <span className="hint">Photos are checked for phone numbers; buyers reach you through PropFinder. Visitors who aren't signed in see the first 2 photos.</span>
           </div>
-          <Field label="Video tour URL (optional)" full><input className="input" value={values.videoUrl} onChange={(e) => set('videoUrl', e.target.value)} placeholder="https://youtube.com/…" /></Field>
+          <div className="form-field form-field--full">
+            <span className="form-field__label">Videos and brochures (shown only to signed-in users)</span>
+            <div className="geo-row">
+              <input ref={videoInputRef} type="file" accept="video/mp4,video/webm,video/quicktime" multiple hidden onChange={(e) => { handleMedia('videos', e.target.files); e.target.value = ''; }} />
+              <input ref={brochureInputRef} type="file" accept="application/pdf" multiple hidden onChange={(e) => { handleMedia('brochures', e.target.files); e.target.value = ''; }} />
+              <button type="button" className="btn btn--outline btn--sm" onClick={() => videoInputRef.current?.click()} disabled={!!mediaUpload.field}>{mediaUpload.field === 'videos' ? 'Uploading…' : 'Upload video'}</button>
+              <button type="button" className="btn btn--outline btn--sm" onClick={() => brochureInputRef.current?.click()} disabled={!!mediaUpload.field}>{mediaUpload.field === 'brochures' ? 'Uploading…' : 'Upload brochure (PDF)'}</button>
+            </div>
+            <span className="hint">Video: MP4, WebM or MOV, up to 100MB. Brochure: PDF, up to 25MB.</span>
+            {mediaUpload.error && <span className="field-error">{mediaUpload.error}</span>}
+            {[...values.videos.map((f) => ['videos', '🎬', f]), ...values.brochures.map((f) => ['brochures', '📄', f])].length > 0 && (
+              <ul className="doc-list">
+                {[...values.videos.map((f) => ['videos', '🎬', f]), ...values.brochures.map((f) => ['brochures', '📄', f])].map(([field, icon, f]) => (
+                  <li key={f.url}>
+                    <span>{icon} {f.name}{f.size ? ` · ${(f.size / 1048576).toFixed(1)} MB` : ''}</span>
+                    <button type="button" className="link-btn small" onClick={() => set(field, values[field].filter((x) => x.url !== f.url))}>Remove</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <Field label="Video tour link (optional, e.g. YouTube)" full><input className="input" value={values.videoUrl} onChange={(e) => set('videoUrl', e.target.value)} placeholder="https://youtube.com/…" /></Field>
         </section>
       )}
 

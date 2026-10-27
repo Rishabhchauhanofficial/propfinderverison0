@@ -72,6 +72,9 @@ const propertySchema = new mongoose.Schema(
     amenities: { type: [String], default: [] },
     images: { type: [String], default: [] },
     videoUrl: { type: String, default: '' },
+    // Uploaded videos and brochures. Stored privately and shown only to signed-in users (see mediaService).
+    videos: [{ _id: false, url: String, name: String, size: Number }],
+    brochures: [{ _id: false, url: String, name: String, size: Number }],
 
     project: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', default: null, index: true },
     developerName: { type: String, trim: true, default: '', index: true },

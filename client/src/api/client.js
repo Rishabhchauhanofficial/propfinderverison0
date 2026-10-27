@@ -74,7 +74,18 @@ export const otpRequest = (phone) => http.post('/auth/otp/request', { phone }).t
 export const otpVerify = (data) => http.post('/auth/otp/verify', data).then(unwrap);
 
 /* ---------- uploads ---------- */
-/** files: FileList | File[]; returns { urls: [...] } */
+/** Videos (MP4/WebM/MOV) and brochures (PDF); private, shown to signed-in users. Returns { files: [{url,name,size}] } */
+export const uploadVideos = (files) => {
+  const fd = new FormData();
+  Array.from(files).forEach((f) => fd.append('videos', f));
+  return http.post('/uploads/videos', fd, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 0 }).then(unwrap);
+};
+export const uploadBrochures = (files) => {
+  const fd = new FormData();
+  Array.from(files).forEach((f) => fd.append('brochures', f));
+  return http.post('/uploads/brochures', fd, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 0 }).then(unwrap);
+};
+/** files: FileList | File[]; returns { urls: [...], rejected: [{name, reason}] } — photos showing a phone number are rejected */
 export const uploadImages = (files) => {
   const fd = new FormData();
   Array.from(files).forEach((f) => fd.append('images', f));

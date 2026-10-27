@@ -11,7 +11,7 @@ import * as projects from '../controllers/projectController.js';
 import * as admin from '../controllers/adminController.js';
 import * as chat from '../controllers/chatController.js';
 import * as misc from '../controllers/miscController.js';
-import { servePrivateFile } from '../controllers/uploadController.js';
+import { serveMedia, servePrivateFile } from '../controllers/uploadController.js';
 
 const router = Router();
 const lister = [requireAuth, requireRole(...LISTER_ROLES)];
@@ -27,6 +27,8 @@ router.post('/contact', optionalAuth, writeLimiter, misc.contact);
 
 /* private documents */
 router.get('/files/:name', requireAuth, servePrivateFile);
+// Videos and brochures: the signed link (issued only to signed-in users) is the credential.
+router.get('/media/:name', serveMedia);
 
 /* RERA */
 router.get('/rera/authorities', rera.authorities);
@@ -36,7 +38,7 @@ router.post('/rera/properties/:id/evidence', ...lister, rera.addEvidence);
 /* projects */
 router.get('/projects', projects.list);
 router.get('/projects/mine', requireAuth, projects.mine);
-router.get('/projects/:slug', projects.getOne);
+router.get('/projects/:slug', optionalAuth, projects.getOne);
 router.post('/projects', requireAuth, writeLimiter, projects.create);
 router.put('/projects/:slug', requireAuth, writeLimiter, projects.update);
 

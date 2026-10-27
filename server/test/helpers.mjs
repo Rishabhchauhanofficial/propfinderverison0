@@ -3,6 +3,8 @@ process.env.NODE_ENV = 'test';
 process.env.RATE_LIMIT = 'off';
 process.env.NEARBY_PROVIDER = process.env.NEARBY_PROVIDER || 'fixture';
 process.env.JWT_SECRET = 'test-secret';
+// Photo phone-number scan: deterministic stand-in for OCR (text after 'OCRTEXT:' in the file).
+process.env.PHONE_SCAN = 'fixture';
 delete process.env.AI_API_KEY;
 // Never touch a real database from tests.
 delete process.env.MONGODB_URI;
@@ -90,6 +92,6 @@ export const sampleListing = (over = {}) => ({
   locality: 'Sector 54',
   location: { lat: 28.4401, lng: 77.0951 },
   amenities: ['Lift'],
-  images: ['https://picsum.photos/seed/t1/800/600'],
+  images: [],
   ...over,
 });

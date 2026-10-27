@@ -39,6 +39,10 @@ const projectSchema = new Schema(
     priceTo: { type: Number, default: null },
     amenities: { type: [String], default: [] },
     images: { type: [String], default: [] },
+    // Uploaded videos and brochures. Stored privately and shown only to signed-in users (see mediaService).
+    videos: [{ _id: false, url: String, name: String, size: Number }],
+    brochures: [{ _id: false, url: String, name: String, size: Number }],
+    videoUrl: { type: String, default: '' },
     location: { lat: { type: Number, default: null }, lng: { type: Number, default: null } },
     // GeoJSON mirror of `location` for distance queries; kept in sync on validate.
     geo: {
@@ -365,3 +369,26 @@ const integrationEventSchema = new Schema(
 );
 integrationEventSchema.index({ createdAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 14 });
 export const IntegrationEvent = model('IntegrationEvent', integrationEventSchema);
+
+/* ---------------- uploads ---------------- */
+
+// One row per uploaded file: who uploaded it, and for photos the phone-number scan result.
+// Listings may only reference files their owner uploaded, and never a photo that failed the scan.
+const uploadSchema = new Schema(
+  {
+    name: { type: String, required: true, unique: true }, // stored file name
+    url: { type: String, required: true, index: true },
+    kind: { type: String, enum: ['image', 'video', 'brochure'], required: true },
+    owner: ref('User', { required: true, index: true }),
+    originalName: { type: String, default: '' },
+    mime: { type: String, default: '' },
+    size: { type: Number, default: 0 },
+    scan: {
+      status: { type: String, enum: ['clean', 'phone-found', 'unscanned'], default: 'unscanned' },
+      found: { type: [String], default: [] }, // masked numbers, e.g. 98••••••10
+      engine: { type: String, default: '' },
+    },
+  },
+  { timestamps: true }
+);
+export const Upload = model('Upload', uploadSchema);

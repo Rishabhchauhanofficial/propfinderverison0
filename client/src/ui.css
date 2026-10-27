@@ -466,3 +466,13 @@
   .hero__bg { transform: none !important; }
   .gallery__main .gallery__img.is-active { transform: none; }
 }
+
+/* ---------- media behind sign-in ---------- */
+.media-lock { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; border: 1px dashed var(--c-primary); background: var(--c-primary-soft); }
+.media-lock__icon { font-size: 1.6rem; }
+.media-lock__body { flex: 1 1 240px; min-width: 0; }
+.media-lock__body .panel__title { margin-bottom: 4px; }
+.media-lock__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.media-videos { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); margin-bottom: 12px; }
+.media-videos figure { margin: 0; }
+.media-videos video { width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: var(--radius-sm); }

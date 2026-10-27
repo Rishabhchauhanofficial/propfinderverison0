@@ -7,6 +7,7 @@ import Property, { COMMERCIAL_TYPES, PROPERTY_TYPES } from '../models/Property.j
 import { escapeRegex, str, toNum } from '../utils/http.js';
 import { isValidCoords } from '../utils/geo.js';
 import { breadcrumb, findBySlug, resolveLocation, searchLocations } from './locationService.js';
+import { cardImages } from './mediaService.js';
 
 const PUBLIC_STATUSES = ['active', 'sold', 'rented'];
 const ci = (v) => new RegExp(`^${escapeRegex(String(v).trim())}$`, 'i');
@@ -248,7 +249,8 @@ export async function search(q = {}, { withFacets = true } = {}) {
 
 /** Normalise a lean/aggregated property into the public card shape. */
 export function toCard(d) {
-  const out = { ...d, id: String(d._id) };
+  // Cards show only the public photos to everyone; the full set is on the property page after login.
+  const out = { ...d, id: String(d._id), ...cardImages(d.images) };
   out.pricePerSqft = d.listingType === 'sale' && d.areaSqft > 0 ? Math.round(d.price / d.areaSqft) : null;
   if (d._distanceM != null) out.distanceKm = Math.round(d._distanceM / 100) / 10;
   if (out.owner && typeof out.owner === 'object') {
