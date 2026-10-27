@@ -1,0 +1,13 @@
+# Test fixture in GeoNames dump format (made-up ids; not real GeoNames data).
+9000001	Delhi	Delhi	NCT	28.65	77.15	A	ADM1	IN		07				0		0	Asia/Kolkata	2026-01-01
+9000002	North West Delhi	North West Delhi		28.71	77.07	A	ADM2	IN		07	091			0		0	Asia/Kolkata	2026-01-01
+9000003	Rohini	Rohini		28.7495	77.0565	P	PPLX	IN		07	091			0		0	Asia/Kolkata	2026-01-01
+9000004	Delhi	Delhi	Dilli	28.6519	77.2315	P	PPLA	IN		07	091			11000000		0	Asia/Kolkata	2026-01-01
+9000005	Uttar Pradesh	Uttar Pradesh		26.85	80.95	A	ADM1	IN		36				0		0	Asia/Kolkata	2026-01-01
+9000006	Kanpur Nagar	Kanpur Nagar		26.46	80.33	A	ADM2	IN		36	164			0		0	Asia/Kolkata	2026-01-01
+9000007	Kanpur	Kanpur	Cawnpore,Cawnpur,KNP	26.4499	80.3319	P	PPLA2	IN		36	164			2700000		0	Asia/Kolkata	2026-01-01
+9000008	Testpur	Testpur		26.55	80.21	P	PPL	IN		36	164			1200		0	Asia/Kolkata	2026-01-01
+9000009	Haryana	Haryana		29.06	76.09	A	ADM1	IN		10				0		0	Asia/Kolkata	2026-01-01
+9000010	Gurgaon	Gurgaon		28.42	76.95	A	ADM2	IN		10	065			0		0	Asia/Kolkata	2026-01-01
+9000011	Gurgaon	Gurgaon	Gurugram	28.4595	77.0266	P	PPLA2	IN		10	065			876000		0	Asia/Kolkata	2026-01-01
+9000012	Fixturegarh	Fixturegarh		28.3	76.9	P	PPL	IN		10	065			15000		0	Asia/Kolkata	2026-01-01

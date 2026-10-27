@@ -6,6 +6,7 @@ import { Developer, Project, ReraRecord, Favorite, Lead, SiteVisit, AnalysisRepo
 import { bhkLabel, propertyTypeLabel } from '../utils/format.js';
 import { slugify } from '../utils/slug.js';
 import { authorityFor, stateCodeFor } from '../services/reraService.js';
+import { backfillListingLocations, seedLocations } from '../services/locationService.js';
 
 /*
  * DEMO DATA. Every property, project and developer created here has
@@ -346,6 +347,10 @@ export async function seedDatabase() {
       history: [{ status: 'not-verified', note: 'Seeded demo record.' }],
     }));
   if (reraDocs.length) await ReraRecord.insertMany(reraDocs);
+
+  // Attach the demo listings and projects to the location tree.
+  await seedLocations();
+  await backfillListingLocations();
 
   const byCity = {};
   for (const d of docs) byCity[d.city] = (byCity[d.city] || 0) + 1;

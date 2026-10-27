@@ -8,8 +8,9 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "seed": "node src/data/seed.js",
-    "test": "node --test --test-concurrency=1 test/units.test.mjs test/api.test.mjs",
-    "lint": "eslint src test"
+    "test": "node --test --test-concurrency=1 test/units.test.mjs test/api.test.mjs test/locations.test.mjs",
+    "lint": "eslint src test",
+    "import:locations": "node src/data/importLocations.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",

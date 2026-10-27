@@ -3,6 +3,7 @@ import { Project, Developer, ReraRecord, Review } from '../models/index.js';
 import { CARD_PROJECTION, toCard } from '../services/searchService.js';
 import { summarize as reraSummary, stateCodeFor, authorityFor } from '../services/reraService.js';
 import { slugify } from '../utils/slug.js';
+import { assignLocation } from '../services/locationService.js';
 import { audit, badRequest, cleanText, escapeRegex, forbidden, isId, notFound, paging, str, toNum, wrap } from '../utils/http.js';
 
 const STATUSES = ['pre-launch', 'under-construction', 'ready', 'completed'];
@@ -116,6 +117,7 @@ export const create = wrap(async (req, res) => {
   }
   const project = new Project({ ...data, slug: `${slugify(`${data.name} ${data.locality} ${data.city}`)}-${Date.now().toString(36).slice(-4)}`, developer: developer?._id || null, developerName: devName, createdBy: req.userId });
   await syncProjectRera(project, req.body || {}, req);
+  await assignLocation(project, { force: true });
   await project.save();
   await audit(req, 'project.create', 'project', project._id);
   res.status(201).json(project);
@@ -129,6 +131,7 @@ export const update = wrap(async (req, res) => {
   const data = pickProject({ ...project.toObject(), ...req.body });
   project.set(data);
   await syncProjectRera(project, req.body || {}, req);
+  await assignLocation(project);
   await project.save();
   await audit(req, 'project.update', 'project', project._id);
   res.json(project);

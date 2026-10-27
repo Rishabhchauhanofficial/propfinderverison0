@@ -6,6 +6,7 @@ import mongoose from 'mongoose';
 import Property, { COMMERCIAL_TYPES, PROPERTY_TYPES } from '../models/Property.js';
 import { escapeRegex, str, toNum } from '../utils/http.js';
 import { isValidCoords } from '../utils/geo.js';
+import { breadcrumb, findBySlug, resolveLocation, searchLocations } from './locationService.js';
 
 const PUBLIC_STATUSES = ['active', 'sold', 'rented'];
 const ci = (v) => new RegExp(`^${escapeRegex(String(v).trim())}$`, 'i');
@@ -43,7 +44,22 @@ export function parseNear(near) {
 }
 
 /** Build the Mongo filter from query params. Unknown params are ignored. */
-export function buildFilter(q = {}) {
+/**
+ * Resolve the search's place (?location=<slug>, or ?city= + ?locality=) onto the location tree.
+ * Returns { node, localMatched } or null when the place is not in the tree.
+ */
+export async function locationScope(q = {}) {
+  if (q.location) {
+    const { node } = await findBySlug(str(q.location));
+    return node ? { node, localMatched: true } : null;
+  }
+  if (!q.city) return null;
+  const res = await resolveLocation({ city: str(q.city), locality: str(q.locality), state: str(q.state) });
+  if (!res.city) return null;
+  return { node: res.locality || res.city, localMatched: !q.locality || !!res.locality };
+}
+
+export function buildFilter(q = {}, { scope = null } = {}) {
   const and = [];
   const filter = {};
 
@@ -57,8 +73,17 @@ export function buildFilter(q = {}) {
   else if (types.length === 1) filter.propertyType = types[0];
   else if (types.length > 1) filter.propertyType = { $in: types };
 
-  if (q.city) filter.city = ci(str(q.city));
-  if (q.locality) filter.locality = ci(str(q.locality));
+  if (scope?.node) {
+    // Everything at or below the matched place (Delhi includes Rohini), plus listings not yet
+    // attached to the tree whose typed address matches.
+    const id = scope.node._id;
+    const typed = q.city ? { locationId: null, city: ci(str(q.city)), ...(q.locality ? { locality: ci(str(q.locality)) } : {}) } : null;
+    and.push({ $or: [{ locationId: id }, { ancestors: id }, ...(typed ? [typed] : [])] });
+    if (q.locality && !scope.localMatched) filter.locality = ci(str(q.locality));
+  } else {
+    if (q.city) filter.city = ci(str(q.city));
+    if (q.locality) filter.locality = ci(str(q.locality));
+  }
   if (q.pinCode) filter.pinCode = str(q.pinCode).replace(/\D/g, '').slice(0, 6);
   if (q.developer) filter.developerName = new RegExp(escapeRegex(str(q.developer).trim()), 'i');
   if (q.project && mongoose.isValidObjectId(str(q.project))) filter.project = new mongoose.Types.ObjectId(str(q.project));
@@ -170,7 +195,8 @@ async function computeFacets(match) {
 
 /** Full search. Returns { items, total, page, pages, facets }. */
 export async function search(q = {}, { withFacets = true } = {}) {
-  const { filter, keyword } = buildFilter(q);
+  const scope = await locationScope(q);
+  const { filter, keyword } = buildFilter(q, { scope });
   const page = Math.max(1, parseInt(str(q.page), 10) || 1);
   const limit = Math.min(50, Math.max(1, parseInt(str(q.limit), 10) || 12));
   const near = parseNear(q.near);
@@ -257,9 +283,27 @@ export async function suggest(term) {
   ]);
   const { Project } = await import('../models/index.js');
   const projects = await Project.find({ name: rx }).select('name slug city locality').limit(4).lean();
+  // Places from the location tree, so aliases work ('Gurgaon' → Gurugram) even before a listing uses that spelling.
+  const seen = new Set([...rows.cities.map((c) => c._id), ...rows.localities.map((l) => l._id.locality)].map((n) => n.toLowerCase()));
+  const places = [];
+  for (const node of await searchLocations(t, { limit: 5 })) {
+    if (node.type === 'country' || seen.has(node.name.toLowerCase())) continue;
+    seen.add(node.name.toLowerCase());
+    const crumbs = (await breadcrumb(node)).filter((c) => c.type !== 'country');
+    const parents = crumbs.slice(0, -1).reverse();
+    const cityCrumb = parents.find((c) => ['city', 'town', 'district', 'state'].includes(c.type));
+    const local = ['locality', 'village'].includes(node.type);
+    places.push({
+      type: local ? 'locality' : 'city',
+      label: node.name,
+      sub: [node.type[0].toUpperCase() + node.type.slice(1), parents.map((c) => c.name).join(', ')].filter(Boolean).join(' · '),
+      params: local && cityCrumb ? { city: cityCrumb.name, locality: node.name } : { city: node.name },
+    });
+  }
   return [
     ...rows.cities.map((c) => ({ type: 'city', label: c._id, sub: `${c.count} listings`, params: { city: c._id } })),
     ...rows.localities.map((l) => ({ type: 'locality', label: l._id.locality, sub: `${l._id.city} · ${l.count} listings`, params: { city: l._id.city, locality: l._id.locality } })),
+    ...places,
     ...rows.pins.filter((p) => p._id.pin).map((p) => ({ type: 'pin', label: p._id.pin, sub: p._id.city, params: { pinCode: p._id.pin } })),
     ...projects.map((p) => ({ type: 'project', label: p.name, sub: `${p.locality}, ${p.city}`, href: `/projects/${p.slug}` })),
     ...rows.developers.map((d) => ({ type: 'developer', label: d._id, sub: 'Developer', params: { developer: d._id } })),

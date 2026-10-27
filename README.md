@@ -85,6 +85,18 @@ Mongoose models: `User`, `Property` and `models/index.js` (Developer, Project, R
 2. backfills the GeoJSON `geo` point from `location` for older listings;
 3. labels v1 seed listings (owned by the old demo accounts) as demo data.
 
+### Location tree
+
+Listings and projects are attached to a `Location` tree (country → state → district → city/town → locality/village) through `locationId` and `ancestors[]`. A listing in Rohini therefore also counts for North West Delhi and Delhi, and `?city=Gurgaon` finds Gurugram listings.
+
+- **Starter tree:** `server/src/data/locations.seed.js` covers every demo city and locality, plus Kanpur, Agra and Lucknow. It loads at boot and never overwrites admin edits.
+- **Matching:** `services/locationService.js` matches a typed city and locality by name, by alias ("Gurgaon", "Bangalore", "Cawnpore") or by a small typo allowance. Numbers are never fuzzed, so "Sector 63" never becomes "Sector 62". As a last resort it uses the listing's coordinates (nearest city within 25 km).
+- **New localities:** a listing that names an unknown locality inside a known city adds that locality to the tree with `source: "listing"` and `reviewed: false`.
+- **Nationwide data:** download [GeoNames IN.zip](https://download.geonames.org/export/dump/IN.zip) (CC BY 4.0, credit GeoNames), unzip `IN.txt` and run
+  `cd server && npm run import:locations -- --file path/to/IN.txt` (add `--no-villages` for a smaller tree, or `--dry-run` to only count). The import is batched and safe to re-run, adopts existing nodes without duplicating them, then recomputes ancestors on every node and listing.
+- **Adding a single place:** add it to `locations.seed.js` under its parent with a unique slug and restart.
+- **API:** `GET /api/locations/search?q=`, `GET /api/locations/:slug` (breadcrumb, children with listing counts; alias slugs return `{ redirect }`), `GET /api/locations/appears-on?city=&locality=`.
+
 v1 users with role `user` keep working (treated as buyer, with listing rights). TTL indexes expire OTPs, search analytics (90 days) and integration events (14 days).
 
 ---

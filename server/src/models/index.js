@@ -40,6 +40,13 @@ const projectSchema = new Schema(
     amenities: { type: [String], default: [] },
     images: { type: [String], default: [] },
     location: { lat: { type: Number, default: null }, lng: { type: Number, default: null } },
+    // GeoJSON mirror of `location` for distance queries; kept in sync on validate.
+    geo: {
+      type: { type: String, enum: ['Point'], default: undefined },
+      coordinates: { type: [Number], default: undefined },
+    },
+    locationId: ref('Location', { default: null, index: true }),
+    ancestors: { type: [Schema.Types.ObjectId], default: [], index: true },
     rera: {
       number: { type: String, default: '' },
       state: { type: String, default: '' },
@@ -50,6 +57,12 @@ const projectSchema = new Schema(
   },
   { timestamps: true }
 );
+projectSchema.index({ geo: '2dsphere' });
+projectSchema.pre('validate', function syncGeo(next) {
+  const { lat, lng } = this.location || {};
+  this.geo = Number.isFinite(lat) && Number.isFinite(lng) ? { type: 'Point', coordinates: [lng, lat] } : undefined;
+  next();
+});
 export const Project = model('Project', projectSchema);
 
 /* ---------------- RERA verification ---------------- */

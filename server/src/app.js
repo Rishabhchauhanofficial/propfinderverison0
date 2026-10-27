@@ -8,6 +8,7 @@ import propertyRoutes from './routes/properties.js';
 import localityRoutes from './routes/localities.js';
 import aiRoutes from './routes/ai.js';
 import seoRoutes from './routes/seo.js';
+import locationRoutes from './routes/locations.js';
 import uploadRoutes from './routes/uploads.js';
 import apiRoutes from './routes/api.js';
 import { UPLOADS_DIR } from './controllers/uploadController.js';
@@ -40,6 +41,7 @@ export function createApp() {
   app.use('/api/auth', authRoutes);
   app.use('/api/properties', propertyRoutes);
   app.use('/api/localities', localityRoutes);
+  app.use('/api/locations', locationRoutes);
   app.use('/api/ai', aiRoutes);
   app.use('/api/uploads', uploadRoutes);
   app.use('/api', apiRoutes);

@@ -55,6 +55,10 @@ const propertySchema = new mongoose.Schema(
     state: { type: String, trim: true, default: '' },
     pinCode: { type: String, trim: true, default: '', index: true },
     address: { type: String, default: '' },
+    // Node in the location tree this listing sits at, and every node above it (root first),
+    // so a Rohini listing also matches North West Delhi and Delhi. Set by locationService.assignLocation.
+    locationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Location', default: null, index: true },
+    ancestors: { type: [mongoose.Schema.Types.ObjectId], default: [], index: true },
     location: {
       lat: { type: Number, default: null },
       lng: { type: Number, default: null },

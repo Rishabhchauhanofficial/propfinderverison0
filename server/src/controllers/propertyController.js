@@ -6,6 +6,7 @@ import { stateCodeFor, authorityFor } from '../services/reraService.js';
 import { notify } from '../services/notificationService.js';
 import { audit, badRequest, cleanText, forbidden, isId, notFound, str, toNum, wrap } from '../utils/http.js';
 import { haversineKm, isValidCoords } from '../utils/geo.js';
+import { assignLocation } from '../services/locationService.js';
 
 const OWNER_FIELDS = 'name role company';
 
@@ -230,6 +231,7 @@ export const create = wrap(async (req, res) => {
   }
   const dup = await findDuplicate(property, property._id);
   if (dup) property.possibleDuplicateOf = dup._id;
+  await assignLocation(property, { force: true });
   await property.save();
   await syncReraRecord(property, req);
   if (property.isModified()) await property.save();
@@ -262,6 +264,7 @@ export const update = wrap(async (req, res) => {
     if (err) throw badRequest(err);
   }
   await syncReraRecord(property, req);
+  await assignLocation(property);
   await property.save();
   await property.populate('owner', OWNER_FIELDS);
   await audit(req, 'property.update', 'property', property._id, { by: req.role });
